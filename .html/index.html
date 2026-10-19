@@ -1,0 +1,99 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="theme-color" content="#f4f3ed">
+    <meta name="description" content="Análise inicial de segurança para homologação de aplicações.">
+    <meta name="sentinela-api-base" content="">
+    <title>Sentinela | Análise de segurança</title>
+    <link rel="stylesheet" href="/style.css">
+    <script src="/script.js" defer></script>
+</head>
+<body>
+    <main>
+        <section class="intro">
+            <div class="brand-bar">
+                <span class="brand-mark" aria-hidden="true">S</span>
+                <span class="brand-name">SENTINELA<span>APPSEC</span></span>
+                <span class="brand-status"><span aria-hidden="true"></span> TRIAGEM DE SEGURANÇA</span>
+            </div>
+            <p class="eyebrow">PORTÃO DE HOMOLOGAÇÃO <span>·</span> REVISÃO DE APLICAÇÕES</p>
+            <h1>Decisões seguras<br>começam com <em>evidências.</em></h1>
+            <p class="intro-copy">Avalie o código, as dependências e os indícios de hospedagem e banco de dados. Receba uma análise contextual por IA, evidências priorizadas e um relatório pronto para compartilhar.</p>
+        </section>
+
+        <section class="workspace" aria-label="Nova análise">
+            <div class="section-heading">
+                <div><span class="step-index">01</span><h2>Selecione o projeto</h2></div>
+                <span class="private-note"><span aria-hidden="true">◆</span> Análise estática · código não é executado</span>
+            </div>
+
+            <div class="source-tabs" role="tablist" aria-label="Origem do código">
+                <button class="source-tab active" id="tab-zip" role="tab" aria-selected="true" aria-controls="panel-zip" type="button">Enviar projeto</button>
+                <button class="source-tab" id="tab-github" role="tab" aria-selected="false" aria-controls="panel-github" type="button">GitHub público</button>
+            </div>
+
+            <form id="scan-form">
+                <div class="source-panel" id="panel-zip" role="tabpanel" aria-labelledby="tab-zip">
+                    <label class="dropzone" id="dropzone" for="zip-file">
+                        <input id="zip-file" name="file" type="file" accept=".zip,application/zip" hidden>
+                        <span class="upload-symbol" aria-hidden="true">↑</span>
+                        <span class="drop-title" id="file-label">Arraste o projeto ZIP ou <u>selecione um arquivo</u></span>
+                        <span class="drop-hint">Arquivo ZIP de até 20 MB · inclua código, configuração e lockfiles</span>
+                    </label>
+                </div>
+                <div class="source-panel" id="panel-github" role="tabpanel" aria-labelledby="tab-github" hidden>
+                    <label class="field-label" for="github-url">Endereço HTTPS do repositório</label>
+                    <input class="text-input" id="github-url" name="githubUrl" type="url" placeholder="https://github.com/organizacao/projeto" autocomplete="url">
+                    <p class="field-hint">Apenas repositórios públicos. O servidor consulta o código durante a análise.</p>
+                </div>
+
+                <div class="ai-required" role="note">
+                    <span class="ai-required-icon" aria-hidden="true">✦</span>
+                    <span class="ai-required-copy"><strong>Análise contextual por IA obrigatória</strong><small id="ai-status-hint">Verificando disponibilidade da análise.</small></span>
+                    <span class="required-tag">ETAPA OBRIGATÓRIA</span>
+                </div>
+
+                <div class="form-actions">
+                    <p class="privacy-note">Para concluir a análise, o código será enviado à API OpenAI configurada no servidor. Envie apenas projetos autorizados. A triagem não substitui pentest ou revisão especializada.</p>
+                    <button class="primary-button" id="scan-button" type="submit" disabled><span>Iniciar análise</span><span aria-hidden="true">↗</span></button>
+                </div>
+            </form>
+        </section>
+
+        <section class="results" id="results" aria-live="polite" hidden>
+            <div class="results-topline"><span class="step-index">02</span><h2>Resultado da análise</h2><span class="scan-meta" id="scan-meta"></span></div>
+            <div class="verdict" id="verdict">
+                <div class="verdict-mark" id="verdict-mark" aria-hidden="true">!</div>
+                <div class="verdict-copy"><span class="eyebrow" id="verdict-eyebrow">RECOMENDAÇÃO</span><h3 id="verdict-title">Análise concluída</h3><p id="verdict-description"></p></div>
+                <div class="finding-count"><strong id="finding-total">0</strong><span>achados</span></div>
+            </div>
+            <div class="metrics" id="metrics"></div>
+            <div class="scan-notes" id="scan-notes"></div>
+            <div class="findings-header"><h3>Achados por gravidade</h3><span id="findings-summary"></span></div>
+            <div class="findings-list" id="findings-list"></div>
+            <div class="empty-findings" id="empty-findings" hidden>Nenhum achado nas verificações executadas. Isso não comprova ausência de vulnerabilidades.</div>
+            <div class="report-actions">
+                <button class="secondary-button" id="docx-button" type="button"><span aria-hidden="true">↓</span> Baixar relatório DOCX</button>
+                <button class="secondary-button" id="prompt-button" type="button"><span aria-hidden="true">✦</span> Gerar prompt de correção</button>
+                <button class="secondary-button" id="email-button" type="button"><span aria-hidden="true">↗</span> Enviar ao responsável</button>
+                <span class="email-status" id="email-status" role="status"></span>
+            </div>
+            <div class="prompt-panel" id="prompt-panel" hidden>
+                <div class="prompt-header">
+                    <h3>Plano de correção para revisão</h3>
+                    <button class="mini-button" id="copy-prompt-button" type="button">Copiar</button>
+                </div>
+                <p class="prompt-caveat">O prompt orienta a revisão por um agente externo; ele não altera arquivos automaticamente. Revise e aprove qualquer patch antes de aplicá-lo.</p>
+                <textarea id="claude-prompt" readonly aria-label="Prompt de correção para um agente de programação"></textarea>
+            </div>
+            <p class="report-caveat">Hospedagem e banco de dados são inferidos pelos arquivos enviados; esta análise não consulta a infraestrutura em produção, não testa conexões nem confirma configurações efetivamente implantadas. O resumo não substitui revisão humana, avaliação de impacto e controles de privacidade e segurança da organização.</p>
+        </section>
+
+        <footer class="page-footer"><span>SENTINELA <span class="footer-divider">/</span> TRIAGEM DE SEGURANÇA</span><span id="footer-capabilities">Aguardando configuração do serviço</span></footer>
+    </main>
+
+    <div class="toast" id="toast" role="status" aria-live="polite"></div>
+</body>
+</html>
