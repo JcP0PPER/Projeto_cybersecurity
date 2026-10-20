@@ -2,40 +2,25 @@
 
 Aplicação web para triagem inicial de segurança de projetos enviados em ZIP ou hospedados em repositórios públicos do GitHub.
 
-## Iniciar automaticamente no Windows
+## Iniciar no Windows
 
-Para iniciar o servidor em segundo plano a cada entrada na sua conta do Windows, abra o PowerShell nesta pasta e execute:
-
-```powershell
-Set-ExecutionPolicy -Scope Process -ExecutionPolicy Bypass
-.\auto-start.ps1
-```
-
-A configuração vale para o usuário atual e começa no próximo login do Windows. Depois, abra `http://localhost:3000` no navegador. O script não abre o navegador automaticamente.
-
-Para remover a inicialização automática, execute no PowerShell:
-
-```powershell
-Remove-ItemProperty -Path 'HKCU:\Software\Microsoft\Windows\CurrentVersion\Run' -Name 'SentinelaAppSec'
-```
-
-## Execução manual para desenvolvimento
-
-Requer Node.js 20 ou superior.
+Requer Node.js 20 ou superior. Abra o PowerShell nesta pasta e execute:
 
 ```powershell
 npm.cmd install
 npm.cmd start
 ```
 
-O comando inicia a aplicação em `http://localhost:3000`, vinculada por padrão apenas a `127.0.0.1`. O arquivo `.env` local é carregado pelo backend; mantenha as credenciais fora do navegador e nunca versione esse arquivo. Projetos enviados têm arquivos `.env` e `.env.*` excluídos antes da análise e do envio à IA.
+Depois, abra `http://localhost:3000` no navegador. O servidor fica vinculado por padrão apenas a `127.0.0.1`. O arquivo `config/.env` é carregado pelo backend; mantenha as credenciais fora do navegador e nunca versione esse arquivo. Projetos enviados têm arquivos `.env` e `.env.*` excluídos antes da análise e do envio à IA.
+
+O backend fica em `src/server.js`; a interface e seus arquivos ficam em `public/`, separados em `css/` e `js/`. O arquivo de configuração local fica em `config/`; os arquivos do npm permanecem na raiz para que os comandos de instalação e inicialização funcionem.
 
 Para uma implantação atrás de proxy/rede, configure `HOST` explicitamente (por exemplo, `HOST=0.0.0.0`) e coloque o serviço atrás de autenticação, TLS e regras de firewall. A aplicação emitirá um aviso ao iniciar com interface de rede; CORS não protege a API contra chamadas diretas.
 
 ## Desenvolvimento com Live Server
 
 1. Inicie o backend em um terminal com `npm.cmd start` e mantenha-o em execução.
-2. No VS Code, use **Go Live** do Live Server para servir `index.html` (porta padrão `5500`).
+2. No VS Code, use **Go Live** do Live Server para servir `public/index.html` (porta padrão `5500`).
 3. No Edge, abra o endereço informado pelo Live Server, normalmente `http://127.0.0.1:5500`.
 
 O frontend detecta o Live Server em `localhost`/`127.0.0.1` e encaminha as chamadas à API na porta `3000`. A API permite CORS apenas para origens locais de desenvolvimento ou origens HTTPS exatas configuradas em `APP_ORIGINS` (separadas por vírgula); CORS é uma política de navegador e não substitui autenticação.
@@ -50,7 +35,7 @@ Sem SMTP, o relatório continua disponível para download em DOCX, mas não pode
 
 ## Escopo e limitações
 
-A aplicação faz triagem estática baseada em padrões, consulta vulnerabilidades de versões fixas encontradas em alguns lockfiles, identifica indícios de hospedagem e tecnologias/configurações de banco nos arquivos enviados e exige análise contextual por IA. O código analisável é enviado à OpenAI após exclusão de arquivos `.env`/`.env.*` e mascaramento de padrões conhecidos de credenciais; mascaramento não detecta toda credencial possível. Não instala nem executa o projeto, não consulta a infraestrutura implantada, não valida conectividade/disponibilidade do banco e não testa endpoints em execução. O achado de CSRF é apenas candidato heurístico: requer endpoint mutável e indícios de sessão/cookie no mesmo arquivo, e precisa ser confirmado manualmente. O prompt de correção recomenda validação e diff revisável; não altera arquivos automaticamente. As conclusões sobre hospedagem e banco são inferências dos arquivos analisados, não confirmação do ambiente de produção. A ferramenta não substitui SAST dedicado, análise de composição de software, pentest ou revisão profissional. Regras podem gerar falsos positivos ou não reconhecer falhas; o resultado não certifica segurança, conformidade com a LGPD ou certificação ISO.
+A aplicação faz triagem estática baseada em padrões, consulta vulnerabilidades de versões fixas encontradas em alguns lockfiles, identifica indícios de hospedagem e tecnologias/configurações de banco nos arquivos enviados e exige análise contextual por IA. O código analisável é enviado à OpenAI após exclusão de arquivos `.env`/`.env.*` e mascaramento de padrões conhecidos de credenciais; mascaramento não detecta toda credencial possível. Ao baixar repositórios do GitHub, o servidor aceita redirecionamento somente para `codeload.github.com` e limita o download a 20 MB durante a transferência. Não instala nem executa o projeto, não consulta a infraestrutura implantada, não valida conectividade/disponibilidade do banco e não testa endpoints em execução. O achado de CSRF é apenas candidato heurístico: requer endpoint mutável e indícios de sessão/cookie no mesmo arquivo, e precisa ser confirmado manualmente. O prompt de correção recomenda validação e diff revisável; não altera arquivos automaticamente. As conclusões sobre hospedagem e banco são inferências dos arquivos analisados, não confirmação do ambiente de produção. A ferramenta não substitui SAST dedicado, análise de composição de software, pentest ou revisão profissional. Regras podem gerar falsos positivos ou não reconhecer falhas; o resultado não certifica segurança, conformidade com a LGPD ou certificação ISO.
 
 Limites atuais: ZIP de 20 MB, conteúdo descompactado de 50 MB, 1.200 entradas, 300 arquivos de texto e 500 KB por arquivo. A consulta OSV cobre npm, PyPI, Packagist e crates.io nos formatos de lockfile reconhecidos pelo analisador.
 

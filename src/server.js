@@ -1,6 +1,6 @@
 const crypto = require('node:crypto');
 const path = require('node:path');
-require('dotenv').config();
+require('dotenv').config({ path: path.resolve(__dirname, '..', 'config', '.env') });
 const express = require('express');
 const helmet = require('helmet');
 const multer = require('multer');
@@ -20,8 +20,14 @@ const maxFileBytes = 500 * 1024;
 const maxAiCharacters = 180000;
 const maxDependencyQueries = 2000;
 const storedReports = new Map();
+const publicDirectory = path.resolve(__dirname, '..', 'public');
 const configuredApiOrigins = new Set((process.env.APP_ORIGINS || '').split(',').map((origin) => origin.trim()).filter(Boolean));
-const textExtensions = new Set(['.js', '.jsx', '.ts', '.tsx', '.mjs', '.cjs', '.py', '.php', '.java', '.go', '.rb', '.cs', '.html', '.htm', '.vue', '.svelte', '.json', '.yaml', '.yml', '.toml', '.xml', '.properties', '.env', '.conf', '.config', '.sql', '.sh', '.tf', '.dockerfile', '.prisma', '.md']);
+const textExtensions = new Set([
+    '.js', '.jsx', '.ts', '.tsx', '.mjs', '.cjs', '.py', '.php', '.java', '.go',
+    '.rb', '.cs', '.html', '.htm', '.vue', '.svelte', '.json', '.yaml', '.yml',
+    '.toml', '.xml', '.properties', '.env', '.conf', '.config', '.sql', '.sh',
+    '.tf', '.dockerfile', '.prisma', '.md'
+]);
 const ignoredPath = /(^|\/)(node_modules|vendor|\.git|dist|build|coverage|\.next|\.venv|venv|__pycache__)(\/|$)/i;
 
 app.disable('x-powered-by');
@@ -152,10 +158,7 @@ app.get('/api/report-docx', async (request, response, next) => {
     }
 });
 
-app.get('/', (_request, response) => response.sendFile(path.join(__dirname, 'index.html')));
-app.get('/index.html', (_request, response) => response.sendFile(path.join(__dirname, 'index.html')));
-app.get('/style.css', (_request, response) => response.sendFile(path.join(__dirname, 'style.css')));
-app.get('/script.js', (_request, response) => response.sendFile(path.join(__dirname, 'script.js')));
+app.use(express.static(publicDirectory));
 
 app.use((error, _request, response, _next) => {
     if (response.headersSent) return;
@@ -249,23 +252,49 @@ function parseGithubUrl(value) {
 }
 
 async function fetchGithubArchive(repository) {
-    const url = `https://api.github.com/repos/${encodeURIComponent(repository.owner)}/${encodeURIComponent(repository.name)}/zipball`;
+    const url = new URL(`/repos/${encodeURIComponent(repository.owner)}/${encodeURIComponent(repository.name)}/zipball`, 'https://api.github.com');
+    const timeout = AbortSignal.timeout(20000);
+    const headers = { Accept: 'application/vnd.github+json', 'User-Agent': 'Sentinela-AppSec-Triage' };
     let result;
     try {
-        result = await fetch(url, {
-            headers: { Accept: 'application/vnd.github+json', 'User-Agent': 'Sentinela-AppSec-Triage' },
-            signal: AbortSignal.timeout(20000)
-        });
+        result = await fetch(url, { headers, signal: timeout, redirect: 'manual' });
     } catch {
         throw httpError(502, 'Não foi possível acessar o GitHub neste momento.');
     }
+    if (result.status >= 300 && result.status < 400) {
+        const location = result.headers.get('location');
+        let redirectUrl;
+        try {
+            redirectUrl = new URL(location, url);
+        } catch {
+            throw httpError(502, 'O GitHub retornou um redirecionamento inválido.');
+        }
+        if (redirectUrl.protocol !== 'https:' || redirectUrl.hostname !== 'codeload.github.com'
+            || redirectUrl.username || redirectUrl.password || redirectUrl.port) {
+            throw httpError(502, 'O GitHub redirecionou para um host não autorizado.');
+        }
+        try {
+            result = await fetch(redirectUrl, { headers, signal: timeout, redirect: 'error' });
+        } catch {
+            throw httpError(502, 'Não foi possível baixar o repositório no GitHub.');
+        }
+    }
     if (result.status === 404) throw httpError(404, 'Repositório não encontrado ou não é público.');
     if (!result.ok) throw httpError(502, `O GitHub respondeu com status ${result.status}.`);
-    const declaredLength = Number(result.headers.get('content-length') || 0);
-    if (declaredLength > maxUploadBytes) throw httpError(413, 'O ZIP do repositório excede o limite de 20 MB.');
-    const bytes = Buffer.from(await result.arrayBuffer());
-    if (bytes.length > maxUploadBytes) throw httpError(413, 'O ZIP do repositório excede o limite de 20 MB.');
-    return bytes;
+    const declaredLength = Number(result.headers.get('content-length'));
+    if (Number.isFinite(declaredLength) && declaredLength > maxUploadBytes) {
+        throw httpError(413, 'O ZIP do repositório excede o limite de 20 MB.');
+    }
+    if (!result.body) throw httpError(502, 'O GitHub retornou um arquivo vazio.');
+
+    const chunks = [];
+    let size = 0;
+    for await (const chunk of result.body) {
+        size += chunk.length;
+        if (size > maxUploadBytes) throw httpError(413, 'O ZIP do repositório excede o limite de 20 MB.');
+        chunks.push(Buffer.from(chunk));
+    }
+    return Buffer.concat(chunks, size);
 }
 
 async function createReport(files, project, ingestionWarnings = []) {
